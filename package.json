@@ -1,0 +1,9 @@
+{
+  "name": "gate-2027-cse-prep",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GATE 2027 CSE prep dashboard with tutor agent",
+  "scripts": {
+    "start": "node server.js"
+  }
+}

@@ -1,0 +1,17 @@
+{
+  "name": "GATE 2027 CSE Prep",
+  "short_name": "GATE 2027",
+  "description": "Plan, track, and revise for GATE 2027 CSE with a focused dashboard.",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#f8f2e9",
+  "theme_color": "#1f6f78",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

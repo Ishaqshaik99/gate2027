@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>GATE 2027 CSE Prep Dashboard</title>
+    <link rel="icon" href="icon.svg" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <meta name="theme-color" content="#1f6f78" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="background-shapes" aria-hidden="true"></div>
+    <div class="app">
+      <header class="topbar">
+        <div class="brand">
+          <div class="badge">G7</div>
+          <div>
+            <p class="brand-title">GATE 2027 CSE Prep</p>
+            <p class="brand-subtitle">Plan, track, and revise with intent.</p>
+          </div>
+        </div>
+        <div class="header-actions">
+          <button class="ghost" id="importButton" type="button">Import</button>
+          <button class="ghost" id="exportButton" type="button">Export</button>
+          <button class="danger" id="resetButton" type="button">Reset</button>
+          <input type="file" id="importFile" accept="application/json" hidden />
+        </div>
+      </header>
+
+      <section class="hero">
+        <div class="hero-main">
+          <h1>Let’s make every session count.</h1>
+          <p>
+            This dashboard keeps your GATE CSE prep focused: daily plans, syllabus
+            completion, mock scores, revision notes, and topic-level quizzes in one place.
+          </p>
+          <div class="target-date">
+            <label for="targetDate">Target date</label>
+            <input type="date" id="targetDate" />
+            <span id="daysLeft" class="days-left">Set a date to start the countdown.</span>
+          </div>
+          <div class="overall-progress">
+            <div class="progress-label">
+              <span>Overall syllabus progress</span>
+              <span id="overallProgressText">0/0</span>
+            </div>
+            <div class="progress-bar">
+              <span id="overallProgressBar"></span>
+            </div>
+          </div>
+        </div>
+        <div class="hero-cards">
+          <div class="stat-card">
+            <p>Days to target</p>
+            <h2 id="statDays">--</h2>
+            <span class="stat-foot">Adjust the date anytime.</span>
+          </div>
+          <div class="stat-card">
+            <p>Topics completed</p>
+            <h2 id="statTopics">0</h2>
+            <span class="stat-foot">Across the CSE syllabus.</span>
+          </div>
+          <div class="stat-card">
+            <p>Today’s tasks</p>
+            <h2 id="statTasks">0/0</h2>
+            <span class="stat-foot">Finish the high-impact tasks first.</span>
+          </div>
+          <div class="stat-card">
+            <p>Study streak</p>
+            <h2 id="statStreak">0 days</h2>
+            <span class="stat-foot" id="statBest">Best: 0</span>
+          </div>
+          <div class="stat-card">
+            <p>Average mock score</p>
+            <h2 id="statScore">--</h2>
+            <span class="stat-foot">Based on logged tests.</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid two-col" id="insights">
+        <div class="card">
+          <div class="card-head">
+            <h2>Study Streak Map</h2>
+            <button class="ghost" id="logStudy" type="button">Log today</button>
+          </div>
+          <div class="streak-legend">
+            <span>Last 30 days</span>
+            <div class="legend-scale">
+              <span class="legend-box low"></span>
+              <span class="legend-box high"></span>
+            </div>
+          </div>
+          <div id="streakGrid" class="streak-grid"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Quiz History</h2>
+            <span class="muted">Recent attempts</span>
+          </div>
+          <ul id="quizHistory" class="list"></ul>
+        </div>
+      </section>
+
+      <section class="grid two-col" id="planner">
+        <div class="card">
+          <div class="card-head">
+            <h2>Daily Planner</h2>
+            <label class="toggle">
+              <input type="checkbox" id="showAllTasks" />
+              <span>Show all tasks</span>
+            </label>
+          </div>
+          <form id="planForm" class="form-row">
+            <input type="time" id="planTime" required />
+            <input type="text" id="planTask" placeholder="Topic or task" required />
+            <select id="planType">
+              <option value="Focus">Focus</option>
+              <option value="Revision">Revision</option>
+              <option value="Test">Test</option>
+              <option value="Break">Break</option>
+            </select>
+            <button type="submit">Add</button>
+          </form>
+          <ul id="planList" class="list"></ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Pomodoro Zone</h2>
+            <span class="muted">Focus sprints with short breaks.</span>
+          </div>
+          <div class="pomodoro">
+            <div class="pomodoro-clock" id="pomodoroClock">25:00</div>
+            <div class="pomodoro-meta">
+              <span id="pomodoroMode">Focus</span>
+              <span id="pomodoroCycle">Cycle 1</span>
+            </div>
+            <div class="pomodoro-actions">
+              <button id="pomodoroStart" type="button">Start</button>
+              <button class="ghost" id="pomodoroPause" type="button">Pause</button>
+              <button class="ghost" id="pomodoroReset" type="button">Reset</button>
+              <button class="ghost" id="pomodoroSwitch" type="button">Switch</button>
+            </div>
+          </div>
+          <div class="focus-box">
+            <h3>Weekly Focus</h3>
+            <div class="form-row three">
+              <input type="text" id="focus1" placeholder="Focus #1" />
+              <input type="text" id="focus2" placeholder="Focus #2" />
+              <input type="text" id="focus3" placeholder="Focus #3" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="syllabusSection">
+        <div class="card-head">
+          <h2>Syllabus Tracker</h2>
+          <span class="muted">Tick off each topic as you master it.</span>
+        </div>
+        <div id="syllabus" class="syllabus-grid"></div>
+      </section>
+
+      <section class="grid two-col" id="topicStudio">
+        <div class="card">
+          <div class="card-head">
+            <h2>Topic Explorer</h2>
+            <span class="muted">Pick a topic, view key ideas, and launch a quiz.</span>
+          </div>
+          <div class="topic-controls">
+            <label for="subjectSelect">Subject</label>
+            <select id="subjectSelect"></select>
+            <label for="topicSelect">Topic</label>
+            <select id="topicSelect"></select>
+          </div>
+          <div id="topicSummary" class="topic-summary"></div>
+          <div class="topic-actions">
+            <label class="toggle">
+              <input type="checkbox" id="topicComplete" />
+              <span>Mark completed</span>
+            </label>
+            <button id="topicQuizButton" type="button">Start Topic Quiz</button>
+          </div>
+          <div class="topic-meta" id="topicStatus"></div>
+          <div class="topic-resources">
+            <h3>Best Resources</h3>
+            <ul id="topicResourceList" class="resource-list"></ul>
+          </div>
+        </div>
+
+        <div class="stack">
+          <div class="card">
+            <div class="card-head">
+              <h2>Topic Visual</h2>
+              <span class="muted">Quick visual map for the selected topic.</span>
+            </div>
+            <div id="topicVisual" class="topic-visual"></div>
+          </div>
+
+          <div class="card">
+            <div class="card-head">
+              <h2>Doubt Solver (Offline)</h2>
+              <span class="muted">Ask doubts with local notes and resources.</span>
+            </div>
+            <div class="doubt-form">
+              <label for="doubtTopic">Topic</label>
+              <select id="doubtTopic"></select>
+              <label for="doubtQuestion">Your question</label>
+              <textarea id="doubtQuestion" rows="4" placeholder="Type your doubt here..."></textarea>
+              <button id="doubtAsk" type="button">Ask</button>
+            </div>
+            <div id="doubtAnswer" class="answer-box">Your answer will appear here.</div>
+            <div class="ai-box">
+              <p class="muted small">
+                Offline doubt solver uses built-in notes and resources. No internet required.
+              </p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="resourcesSection">
+        <div class="card-head">
+          <h2>Best Resources Library</h2>
+          <span class="muted">Curated from trusted courses and open materials.</span>
+        </div>
+        <p class="muted small">Telegram communities are unofficial. Verify before sharing personal info.</p>
+        <div class="resources-controls">
+          <input id="resourceSearch" type="search" placeholder="Search resources..." />
+        </div>
+        <details class="resource-add">
+          <summary>Add your own resource</summary>
+          <form id="resourceForm" class="form-row two">
+            <select id="resourceCategory"></select>
+            <input id="resourceTitle" type="text" placeholder="Resource title" required />
+            <input id="resourceUrl" type="url" placeholder="https://..." required />
+            <select id="resourceType">
+              <option value="YouTube">YouTube</option>
+              <option value="Course">Course</option>
+              <option value="Book">Book</option>
+              <option value="Practice">Practice</option>
+              <option value="Reference">Reference</option>
+              <option value="Telegram">Telegram</option>
+            </select>
+            <input id="resourceNote" type="text" placeholder="Short note (optional)" />
+            <button type="submit">Add</button>
+          </form>
+        </details>
+        <div id="resourcesGrid" class="resources-grid"></div>
+      </section>
+
+      <section class="grid two-col" id="testsNotes">
+        <div class="card">
+          <div class="card-head">
+            <h2>Mock Tests</h2>
+            <span class="muted">Log full-length or topic tests.</span>
+          </div>
+          <form id="testForm" class="form-row">
+            <input type="date" id="testDate" required />
+            <input type="number" id="testScore" placeholder="Score" min="0" step="0.25" required />
+            <input type="number" id="testMax" placeholder="Max" min="0" step="0.25" />
+            <input type="text" id="testNotes" placeholder="Notes (optional)" />
+            <button type="submit">Add</button>
+          </form>
+          <div id="testStats" class="test-stats"></div>
+          <ul id="testList" class="list"></ul>
+        </div>
+
+        <div class="card">
+          <div class="card-head">
+            <h2>Notes & Revision</h2>
+            <span class="muted">Capture formulas, shortcuts, and reminders.</span>
+          </div>
+          <textarea id="notes" rows="12" placeholder="Add your revision notes here..."></textarea>
+          <div class="notes-actions">
+            <button class="ghost" id="notesSave" type="button">Save Notes</button>
+            <span id="notesStatus" class="muted small">Not saved yet.</span>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footer">Built for consistent prep. Customize it as you go.</footer>
+    </div>
+
+    <div id="quizModal" class="modal hidden" role="dialog" aria-modal="true">
+      <div class="modal-content">
+        <div class="modal-head">
+          <h2 id="quizTitle">Topic Quiz</h2>
+          <button class="ghost" id="quizClose" type="button">Close</button>
+        </div>
+        <form id="quizForm"></form>
+        <div id="quizResult" class="quiz-result"></div>
+        <div class="quiz-footer">
+          <button class="ghost" id="quizAsk" type="button">Ask about this quiz</button>
+          <button id="quizSubmit" type="button">Submit Quiz</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
