@@ -210,6 +210,35 @@ button.danger {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
+.subject-nav {
+  margin-top: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 10px 0;
+}
+
+.subject-nav button {
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--accent-strong);
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.subject-nav button.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+  box-shadow: 0 10px 20px rgba(31, 111, 120, 0.2);
+}
+
+.subject-nav button:hover {
+  transform: translateY(-1px);
+}
+
 .stat-card {
   background: var(--card);
   border: 1px solid var(--card-border);

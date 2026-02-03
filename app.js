@@ -1136,7 +1136,7 @@ const state = {
   focus: store.get(STORAGE_KEYS.focus, ["", "", ""]),
   studyLog: store.get(STORAGE_KEYS.studyLog, []),
   quizLog: store.get(STORAGE_KEYS.quizLog, []),
-  view: store.get(STORAGE_KEYS.view, { category: "", topic: "" }),
+  view: store.get(STORAGE_KEYS.view, { category: "", topic: "", filter: "All" }),
   customResources: store.get(STORAGE_KEYS.customResources, []),
   lastQuizTopic: null,
 };
@@ -1152,6 +1152,7 @@ const elements = {
   statScore: document.getElementById("statScore"),
   statStreak: document.getElementById("statStreak"),
   statBest: document.getElementById("statBest"),
+  subjectNav: document.getElementById("subjectNav"),
   streakGrid: document.getElementById("streakGrid"),
   quizHistory: document.getElementById("quizHistory"),
   logStudy: document.getElementById("logStudy"),
@@ -1251,6 +1252,8 @@ const dedupeResources = (resources) => {
     return true;
   });
 };
+
+const getSubjectCategories = () => syllabusData.map((section) => section.category);
 
 const registerCustomResources = () => {
   if (!state.customResources?.length) return;
@@ -1641,6 +1644,45 @@ const showToast = (message) => {
   window.setTimeout(() => elements.toast.classList.add("hidden"), 2400);
 };
 
+const renderSubjectNav = () => {
+  if (!elements.subjectNav) return;
+  elements.subjectNav.innerHTML = "";
+  const subjects = getSubjectCategories();
+  const items = ["All", ...subjects];
+
+  items.forEach((subject) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = subject;
+    const isActive =
+      (subject === "All" && (!state.view.filter || state.view.filter === "All")) ||
+      state.view.filter === subject;
+    if (isActive) {
+      button.classList.add("active");
+    }
+    button.addEventListener("click", () => {
+      if (subject === "All") {
+        state.view.filter = "All";
+        store.set(STORAGE_KEYS.view, state.view);
+        renderSubjectNav();
+        renderResourcesLibrary();
+        return;
+      }
+
+      state.view.filter = subject;
+      state.view.category = subject;
+      const section = syllabusData.find((item) => item.category === subject);
+      state.view.topic = section?.items[0]?.id || "";
+      store.set(STORAGE_KEYS.view, state.view);
+      renderSubjectNav();
+      renderTopicExplorer();
+      renderResourcesLibrary();
+      document.getElementById("topicStudio")?.scrollIntoView({ behavior: "smooth" });
+    });
+    elements.subjectNav.appendChild(button);
+  });
+};
+
 const renderSyllabus = () => {
   elements.syllabus.innerHTML = "";
   syllabusData.forEach((section) => {
@@ -1938,6 +1980,9 @@ const renderTopicExplorer = () => {
   if (!state.view.category || !categories.includes(state.view.category)) {
     state.view.category = categories[0];
   }
+  if (!state.view.filter) {
+    state.view.filter = "All";
+  }
 
   elements.subjectSelect.innerHTML = "";
   categories.forEach((category) => {
@@ -2007,7 +2052,10 @@ const renderTopicExplorer = () => {
 const renderResourcesLibrary = () => {
   const query = (elements.resourceSearch?.value || "").trim().toLowerCase();
   elements.resourcesGrid.innerHTML = "";
-  getAllCategories().forEach((category) => {
+  const filter = state.view?.filter || "All";
+  const categories = getAllCategories().filter((category) => filter === "All" || category === filter);
+
+  categories.forEach((category) => {
     const resources = dedupeResources(getResourcesForCategory(category));
     const filtered = query
       ? resources.filter((resource) => {
@@ -2568,6 +2616,7 @@ const renderAll = () => {
   renderTests();
   renderStreakGrid();
   renderQuizHistory();
+  renderSubjectNav();
   populateResourceCategories();
   renderResourcesLibrary();
   populateDoubtTopics();
