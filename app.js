@@ -9,6 +9,8 @@ const STORAGE_KEYS = {
   quizLog: "gate2027.quizLog",
   view: "gate2027.view",
   customResources: "gate2027.customResources",
+  pyqTracker: "gate2027.pyqTracker",
+  importantTopics: "gate2027.importantTopics",
 };
 
 const DEFAULT_VIEW = {
@@ -18,6 +20,36 @@ const DEFAULT_VIEW = {
   filter: "All",
   sidebarOpen: false,
 };
+
+const PYQ_START_YEAR = 1983;
+const PYQ_END_YEAR = new Date().getFullYear() - 1;
+
+const pyqSources = [
+  {
+    id: "gate2025-download",
+    title: "GATE 2025 Official Downloads",
+    url: "https://gate2025.iitr.ac.in/download.html",
+    note: "Bulk previous years (2007–2024) + year-wise papers (2019–2024).",
+  },
+  {
+    id: "gate2025-master",
+    title: "GATE 2025 Master Question Papers",
+    url: "https://gate2025.iitr.ac.in/question-papers.html",
+    note: "Master question papers and answer keys.",
+  },
+  {
+    id: "gate2024-download",
+    title: "GATE 2024 Downloads",
+    url: "https://gate2024.iisc.ac.in/downloads/",
+    note: "Bulk previous years (2007–2023) + year-wise papers (2019–2023).",
+  },
+  {
+    id: "gate2022-old",
+    title: "GATE 2022 Old Question Papers",
+    url: "https://gate.iitkgp.ac.in/old_question_papers.html",
+    note: "Official archive for 2007–2022 papers.",
+  },
+];
 
 const syllabusData = [
   {
@@ -1146,6 +1178,9 @@ const state = {
   quizLog: store.get(STORAGE_KEYS.quizLog, []),
   view: { ...DEFAULT_VIEW, ...store.get(STORAGE_KEYS.view, {}) },
   customResources: store.get(STORAGE_KEYS.customResources, []),
+  pyqTracker: store.get(STORAGE_KEYS.pyqTracker, {}),
+  importantTopics: store.get(STORAGE_KEYS.importantTopics, {}),
+  pyqFiles: [],
   lastQuizTopic: null,
 };
 
@@ -1211,6 +1246,7 @@ const elements = {
   topicSelect: document.getElementById("topicSelect"),
   topicSummary: document.getElementById("topicSummary"),
   topicComplete: document.getElementById("topicComplete"),
+  topicImportant: document.getElementById("topicImportant"),
   topicQuizButton: document.getElementById("topicQuizButton"),
   topicStatus: document.getElementById("topicStatus"),
   topicResourceList: document.getElementById("topicResourceList"),
@@ -1227,6 +1263,18 @@ const elements = {
   resourceType: document.getElementById("resourceType"),
   resourceNote: document.getElementById("resourceNote"),
   resourcesGrid: document.getElementById("resourcesGrid"),
+  pyqSection: document.getElementById("pyqSection"),
+  pyqSources: document.getElementById("pyqSources"),
+  pyqYearGrid: document.getElementById("pyqYearGrid"),
+  pyqForm: document.getElementById("pyqForm"),
+  pyqYearSelect: document.getElementById("pyqYearSelect"),
+  pyqTypeSelect: document.getElementById("pyqTypeSelect"),
+  pyqFile: document.getElementById("pyqFile"),
+  pyqNote: document.getElementById("pyqNote"),
+  pyqSearch: document.getElementById("pyqSearch"),
+  pyqYearFilter: document.getElementById("pyqYearFilter"),
+  pyqImportantOnly: document.getElementById("pyqImportantOnly"),
+  pyqList: document.getElementById("pyqList"),
   quizModal: document.getElementById("quizModal"),
   quizTitle: document.getElementById("quizTitle"),
   quizForm: document.getElementById("quizForm"),
@@ -1280,6 +1328,14 @@ const dedupeResources = (resources) => {
 
 const getSubjectCategories = () => syllabusData.map((section) => section.category);
 
+const buildPyqYears = () => {
+  const years = [];
+  for (let year = PYQ_END_YEAR; year >= PYQ_START_YEAR; year -= 1) {
+    years.push(year);
+  }
+  return years;
+};
+
 const isSubjectView = () =>
   state.view?.page === "subject" && state.view.filter && state.view.filter !== "All";
 
@@ -1324,6 +1380,81 @@ const normalizeViewState = () => {
   }
 
   store.set(STORAGE_KEYS.view, state.view);
+};
+
+const pyqDB = {
+  db: null,
+  init() {
+    if (!("indexedDB" in window)) {
+      return Promise.reject(new Error("IndexedDB not supported"));
+    }
+    if (this.db) return Promise.resolve(this.db);
+
+    return new Promise((resolve, reject) => {
+      const request = indexedDB.open("gate2027-pyq", 1);
+      request.onupgradeneeded = () => {
+        const db = request.result;
+        if (!db.objectStoreNames.contains("files")) {
+          db.createObjectStore("files", { keyPath: "id" });
+        }
+      };
+      request.onsuccess = () => {
+        this.db = request.result;
+        resolve(this.db);
+      };
+      request.onerror = () => reject(request.error);
+    });
+  },
+  getAll() {
+    return this.init().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction("files", "readonly");
+          const store = tx.objectStore("files");
+          const req = store.getAll();
+          req.onsuccess = () => resolve(req.result || []);
+          req.onerror = () => reject(req.error);
+        })
+    );
+  },
+  put(entry) {
+    return this.init().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction("files", "readwrite");
+          const store = tx.objectStore("files");
+          const req = store.put(entry);
+          req.onsuccess = () => resolve(entry);
+          req.onerror = () => reject(req.error);
+        })
+    );
+  },
+  remove(id) {
+    return this.init().then(
+      (db) =>
+        new Promise((resolve, reject) => {
+          const tx = db.transaction("files", "readwrite");
+          const store = tx.objectStore("files");
+          const req = store.delete(id);
+          req.onsuccess = () => resolve(true);
+          req.onerror = () => reject(req.error);
+        })
+    );
+  },
+};
+
+const loadPyqFiles = () => {
+  if (!("indexedDB" in window)) return;
+  pyqDB
+    .getAll()
+    .then((files) => {
+      state.pyqFiles = files || [];
+      renderPyqLibrary();
+    })
+    .catch(() => {
+      state.pyqFiles = [];
+      renderPyqLibrary();
+    });
 };
 
 const registerCustomResources = () => {
@@ -1831,6 +1962,7 @@ const renderView = () => {
   if (elements.subjectHeader) elements.subjectHeader.classList.toggle("hidden", !subjectMode);
   if (elements.syllabusSection) elements.syllabusSection.classList.toggle("hidden", !subjectMode);
   if (elements.topicStudio) elements.topicStudio.classList.toggle("hidden", !subjectMode);
+  if (elements.pyqSection) elements.pyqSection.classList.toggle("hidden", !subjectMode);
   if (elements.resourcesSection) elements.resourcesSection.classList.toggle("hidden", !subjectMode);
 
   renderSubjectHeader();
@@ -1897,7 +2029,16 @@ const renderSyllabus = () => {
       });
 
       const label = document.createElement("label");
-      label.textContent = item.label;
+      label.className = "topic-label";
+      const labelText = document.createElement("span");
+      labelText.textContent = item.label;
+      label.appendChild(labelText);
+      if (state.importantTopics[item.id]) {
+        const tag = document.createElement("span");
+        tag.className = "tag important";
+        tag.textContent = "Very Important";
+        label.appendChild(tag);
+      }
       label.style.cursor = "pointer";
       label.addEventListener("click", () => {
         selectTopic(item.id);
@@ -2185,8 +2326,16 @@ const renderTopicExplorer = () => {
   const topicLabel = topics.find((topic) => topic.id === state.view.topic)?.label || "";
   elements.topicSummary.textContent = detail?.summary || "Add notes to clarify this topic.";
   elements.topicComplete.checked = Boolean(state.syllabus[state.view.topic]);
-  elements.topicStatus.textContent =
-    state.syllabus[state.view.topic] ? "Status: Completed" : "Status: In progress";
+  if (elements.topicImportant) {
+    elements.topicImportant.checked = Boolean(state.importantTopics[state.view.topic]);
+  }
+  const statusParts = [
+    state.syllabus[state.view.topic] ? "Status: Completed" : "Status: In progress",
+  ];
+  if (state.importantTopics[state.view.topic]) {
+    statusParts.push("Priority: Very Important");
+  }
+  elements.topicStatus.textContent = statusParts.join(" • ");
 
   const directResources = (detail?.resources || [])
     .map((resourceId) => resourceMap[resourceId])
@@ -2258,6 +2407,255 @@ const renderResourcesLibrary = () => {
     empty.textContent = query ? `No resources match "${query}".` : "No resources yet.";
     elements.resourcesGrid.appendChild(empty);
   }
+};
+
+const renderPyqSources = () => {
+  if (!elements.pyqSources) return;
+  elements.pyqSources.innerHTML = "";
+
+  pyqSources.forEach((source) => {
+    const card = document.createElement("div");
+    card.className = "pyq-source";
+    const title = document.createElement("h4");
+    title.textContent = source.title;
+    const link = document.createElement("a");
+    link.href = source.url;
+    link.target = "_blank";
+    link.rel = "noreferrer";
+    link.textContent = "Open official source";
+    const note = document.createElement("p");
+    note.className = "muted small";
+    note.textContent = source.note;
+    card.appendChild(title);
+    card.appendChild(link);
+    card.appendChild(note);
+    elements.pyqSources.appendChild(card);
+  });
+
+  const helper = document.createElement("p");
+  helper.className = "muted small";
+  helper.textContent =
+    "GATE started in 1983. Official online archives are available mainly from 2007 onward; add older papers manually if you have them.";
+  elements.pyqSources.appendChild(helper);
+};
+
+const renderPyqYearGrid = () => {
+  if (!elements.pyqYearGrid) return;
+  elements.pyqYearGrid.innerHTML = "";
+
+  buildPyqYears().forEach((year) => {
+    const card = document.createElement("div");
+    card.className = "pyq-year-card";
+
+    const title = document.createElement("p");
+    title.textContent = String(year);
+
+    const label = document.createElement("label");
+    label.className = "toggle";
+    const checkbox = document.createElement("input");
+    checkbox.type = "checkbox";
+    checkbox.checked = Boolean(state.pyqTracker[year]);
+    checkbox.addEventListener("change", () => {
+      state.pyqTracker[year] = checkbox.checked;
+      store.set(STORAGE_KEYS.pyqTracker, state.pyqTracker);
+    });
+    const span = document.createElement("span");
+    span.textContent = "Solved";
+    label.appendChild(checkbox);
+    label.appendChild(span);
+
+    card.appendChild(title);
+    card.appendChild(label);
+    elements.pyqYearGrid.appendChild(card);
+  });
+};
+
+const populatePyqYearSelect = () => {
+  if (!elements.pyqYearSelect) return;
+  elements.pyqYearSelect.innerHTML = "";
+  buildPyqYears().forEach((year) => {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    if (year === PYQ_END_YEAR) {
+      option.selected = true;
+    }
+    elements.pyqYearSelect.appendChild(option);
+  });
+};
+
+const populatePyqYearFilter = () => {
+  if (!elements.pyqYearFilter) return;
+  elements.pyqYearFilter.innerHTML = "";
+  const allOption = document.createElement("option");
+  allOption.value = "All";
+  allOption.textContent = "All years";
+  elements.pyqYearFilter.appendChild(allOption);
+  buildPyqYears().forEach((year) => {
+    const option = document.createElement("option");
+    option.value = String(year);
+    option.textContent = String(year);
+    elements.pyqYearFilter.appendChild(option);
+  });
+};
+
+const formatBytes = (value) => {
+  if (!value && value !== 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let size = value;
+  let unitIndex = 0;
+  while (size >= 1024 && unitIndex < units.length - 1) {
+    size /= 1024;
+    unitIndex += 1;
+  }
+  return `${Math.round(size * 10) / 10}${units[unitIndex]}`;
+};
+
+const renderPyqLibrary = () => {
+  if (!elements.pyqList) return;
+  const query = (elements.pyqSearch?.value || "").trim().toLowerCase();
+  const yearFilter = elements.pyqYearFilter?.value || "All";
+  const importantOnly = Boolean(elements.pyqImportantOnly?.checked);
+
+  const files = [...state.pyqFiles].sort((a, b) => {
+    if (b.year !== a.year) return b.year - a.year;
+    return (b.addedAt || "").localeCompare(a.addedAt || "");
+  });
+
+  const filtered = files.filter((entry) => {
+    if (yearFilter !== "All" && String(entry.year) !== yearFilter) return false;
+    if (importantOnly && !entry.important) return false;
+    if (!query) return true;
+    const haystack = `${entry.name} ${entry.note || ""} ${entry.type} ${entry.year}`.toLowerCase();
+    return haystack.includes(query);
+  });
+
+  elements.pyqList.innerHTML = "";
+
+  if (!filtered.length) {
+    const empty = document.createElement("li");
+    empty.className = "list-item";
+    empty.textContent = "No offline PDFs yet. Add a file to access it offline.";
+    elements.pyqList.appendChild(empty);
+    return;
+  }
+
+  filtered.forEach((entry) => {
+    const item = document.createElement("li");
+    item.className = "list-item";
+
+    const info = document.createElement("div");
+    info.className = "pyq-file-meta";
+
+    const title = document.createElement("p");
+    title.className = "task-title";
+    title.textContent = entry.name || "PYQ File";
+    if (entry.important) {
+      const tag = document.createElement("span");
+      tag.className = "tag important";
+      tag.textContent = "Very Important";
+      title.appendChild(tag);
+    }
+
+    const meta = document.createElement("p");
+    meta.className = "task-meta";
+    const parts = [`${entry.year}`, entry.type];
+    if (entry.note) parts.push(entry.note);
+    if (entry.size) parts.push(formatBytes(entry.size));
+    meta.textContent = parts.join(" • ");
+
+    info.appendChild(title);
+    info.appendChild(meta);
+
+    const actions = document.createElement("div");
+    actions.className = "pyq-actions";
+
+    const openBtn = document.createElement("button");
+    openBtn.className = "icon-btn";
+    openBtn.type = "button";
+    openBtn.textContent = "Open";
+    openBtn.addEventListener("click", () => {
+      if (!entry.blob) return;
+      const url = URL.createObjectURL(entry.blob);
+      window.open(url, "_blank");
+      window.setTimeout(() => URL.revokeObjectURL(url), 10000);
+    });
+
+    const importantBtn = document.createElement("button");
+    importantBtn.className = "icon-btn";
+    importantBtn.type = "button";
+    importantBtn.textContent = entry.important ? "Unmark" : "Mark important";
+    importantBtn.addEventListener("click", () => {
+      entry.important = !entry.important;
+      pyqDB.put(entry).then(() => {
+        state.pyqFiles = state.pyqFiles.map((file) => (file.id === entry.id ? entry : file));
+        renderPyqLibrary();
+      });
+    });
+
+    const removeBtn = document.createElement("button");
+    removeBtn.className = "icon-btn";
+    removeBtn.type = "button";
+    removeBtn.textContent = "Remove";
+    removeBtn.addEventListener("click", () => {
+      pyqDB.remove(entry.id).then(() => {
+        state.pyqFiles = state.pyqFiles.filter((file) => file.id !== entry.id);
+        renderPyqLibrary();
+      });
+    });
+
+    actions.appendChild(openBtn);
+    actions.appendChild(importantBtn);
+    actions.appendChild(removeBtn);
+
+    item.appendChild(info);
+    item.appendChild(actions);
+    elements.pyqList.appendChild(item);
+  });
+};
+
+const addPyqFile = () => {
+  if (!("indexedDB" in window)) {
+    showToast("Offline storage not supported in this browser.");
+    return;
+  }
+  const file = elements.pyqFile?.files?.[0];
+  if (!file) {
+    showToast("Select a PDF file to store.");
+    return;
+  }
+  if (file.type && file.type !== "application/pdf") {
+    showToast("Only PDF files are supported.");
+    return;
+  }
+
+  const year = Number(elements.pyqYearSelect.value);
+  const type = elements.pyqTypeSelect.value;
+  const note = elements.pyqNote.value.trim();
+
+  const entry = {
+    id: safeId(),
+    year,
+    type,
+    name: file.name,
+    note,
+    size: file.size,
+    addedAt: new Date().toISOString(),
+    important: false,
+    blob: file,
+  };
+
+  pyqDB
+    .put(entry)
+    .then(() => {
+      state.pyqFiles = [entry, ...state.pyqFiles];
+      renderPyqLibrary();
+      elements.pyqForm.reset();
+      showToast("Saved offline PDF.");
+    })
+    .catch(() => {
+      showToast("Could not save PDF. Try again.");
+    });
 };
 
 const populateDoubtTopics = () => {
@@ -2584,8 +2982,15 @@ const bindEvents = () => {
     state.focus = ["", "", ""];
     state.studyLog = [];
     state.quizLog = [];
-    state.view = { category: "", topic: "" };
+    state.view = { ...DEFAULT_VIEW };
     state.customResources = [];
+    state.pyqTracker = {};
+    state.importantTopics = {};
+    state.pyqFiles = [];
+
+    if ("indexedDB" in window) {
+      indexedDB.deleteDatabase("gate2027-pyq");
+    }
 
     loadState();
     renderAll();
@@ -2605,6 +3010,8 @@ const bindEvents = () => {
         quizLog: state.quizLog,
         view: state.view,
         customResources: state.customResources,
+        pyqTracker: state.pyqTracker,
+        importantTopics: state.importantTopics,
       },
     };
 
@@ -2640,6 +3047,8 @@ const bindEvents = () => {
         state.quizLog = payload.quizLog || [];
         state.view = { ...DEFAULT_VIEW, ...(payload.view || {}) };
         state.customResources = payload.customResources || [];
+        state.pyqTracker = payload.pyqTracker || {};
+        state.importantTopics = payload.importantTopics || {};
 
         store.set(STORAGE_KEYS.dailyPlan, state.plan);
         store.set(STORAGE_KEYS.syllabus, state.syllabus);
@@ -2651,6 +3060,8 @@ const bindEvents = () => {
         store.set(STORAGE_KEYS.quizLog, state.quizLog);
         store.set(STORAGE_KEYS.view, state.view);
         store.set(STORAGE_KEYS.customResources, state.customResources);
+        store.set(STORAGE_KEYS.pyqTracker, state.pyqTracker);
+        store.set(STORAGE_KEYS.importantTopics, state.importantTopics);
 
         loadState();
         renderAll();
@@ -2670,6 +3081,25 @@ const bindEvents = () => {
       event.preventDefault();
       addCustomResource();
     });
+  }
+
+  if (elements.pyqForm) {
+    elements.pyqForm.addEventListener("submit", (event) => {
+      event.preventDefault();
+      addPyqFile();
+    });
+  }
+
+  if (elements.pyqSearch) {
+    elements.pyqSearch.addEventListener("input", renderPyqLibrary);
+  }
+
+  if (elements.pyqYearFilter) {
+    elements.pyqYearFilter.addEventListener("change", renderPyqLibrary);
+  }
+
+  if (elements.pyqImportantOnly) {
+    elements.pyqImportantOnly.addEventListener("change", renderPyqLibrary);
   }
 
   if (elements.logStudy) {
@@ -2760,6 +3190,16 @@ const bindEvents = () => {
     }
   });
 
+  if (elements.topicImportant) {
+    elements.topicImportant.addEventListener("change", (event) => {
+      const topicId = state.view.topic;
+      state.importantTopics[topicId] = event.target.checked;
+      store.set(STORAGE_KEYS.importantTopics, state.importantTopics);
+      renderSyllabus();
+      renderTopicExplorer();
+    });
+  }
+
   elements.topicQuizButton.addEventListener("click", () => {
     openQuiz(state.view.topic);
   });
@@ -2806,6 +3246,7 @@ const loadState = () => {
     input.value = state.focus[index] || "";
   });
   registerCustomResources();
+  loadPyqFiles();
 };
 
 const renderAll = () => {
@@ -2819,6 +3260,11 @@ const renderAll = () => {
   renderQuizHistory();
   populateResourceCategories();
   renderResourcesLibrary();
+  renderPyqSources();
+  renderPyqYearGrid();
+  populatePyqYearSelect();
+  populatePyqYearFilter();
+  renderPyqLibrary();
   renderTopicExplorer();
   updatePomodoroUI();
   updateStats();

@@ -1,4 +1,4 @@
-const CACHE_NAME = "gate2027-cse-v6";
+const CACHE_NAME = "gate2027-cse-v7";
 const ASSETS = [
   "./",
   "./index.html",

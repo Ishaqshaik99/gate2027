@@ -229,6 +229,10 @@
               <input type="checkbox" id="topicComplete" />
               <span>Mark completed</span>
             </label>
+            <label class="toggle">
+              <input type="checkbox" id="topicImportant" />
+              <span>Very important</span>
+            </label>
             <button id="topicQuizButton" type="button">Start Topic Quiz</button>
           </div>
           <div class="topic-meta" id="topicStatus"></div>
@@ -267,6 +271,47 @@
             </div>
           </div>
         </div>
+          </section>
+
+          <section class="card" id="pyqSection">
+            <div class="card-head">
+              <h2>Previous Year Papers (PYQ Vault)</h2>
+              <span class="muted">Official sources plus offline storage.</span>
+            </div>
+            <div id="pyqSources" class="pyq-sources"></div>
+            <div class="pyq-block">
+              <div class="pyq-subhead">
+                <h3>Year Tracker</h3>
+                <span class="muted small">Mark years you have solved.</span>
+              </div>
+              <div id="pyqYearGrid" class="pyq-year-grid"></div>
+            </div>
+            <div class="pyq-block">
+              <div class="pyq-subhead">
+                <h3>Offline PDFs</h3>
+                <span class="muted small">Store files locally so they stay available offline.</span>
+              </div>
+              <form id="pyqForm" class="form-row pyq-form">
+                <select id="pyqYearSelect"></select>
+                <select id="pyqTypeSelect">
+                  <option value="Question Paper">Question Paper</option>
+                  <option value="Answer Key">Answer Key</option>
+                  <option value="Solutions">Solutions</option>
+                </select>
+                <input id="pyqFile" type="file" accept="application/pdf" />
+                <input id="pyqNote" type="text" placeholder="Note (optional)" />
+                <button type="submit">Save PDF</button>
+              </form>
+              <div class="pyq-filter">
+                <input id="pyqSearch" type="search" placeholder="Search offline PDFs..." />
+                <select id="pyqYearFilter"></select>
+                <label class="toggle">
+                  <input type="checkbox" id="pyqImportantOnly" />
+                  <span>Very important only</span>
+                </label>
+              </div>
+              <ul id="pyqList" class="list"></ul>
+            </div>
           </section>
 
           <section class="card" id="resourcesSection">

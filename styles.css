@@ -589,6 +589,30 @@ textarea {
   margin-top: 3px;
 }
 
+.topic-label {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+}
+
+.tag.important {
+  background: rgba(255, 131, 92, 0.2);
+  color: #aa3b1f;
+  border-color: rgba(255, 131, 92, 0.35);
+}
+
 .topic-controls {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -713,6 +737,108 @@ textarea {
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.pyq-sources {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  margin-bottom: 18px;
+}
+
+.pyq-source {
+  border-radius: 14px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px;
+}
+
+.pyq-source h4 {
+  margin: 0 0 6px;
+  font-size: 0.95rem;
+}
+
+.pyq-source a {
+  color: var(--accent-strong);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.pyq-source .muted {
+  margin-top: 6px;
+}
+
+.pyq-block + .pyq-block {
+  margin-top: 22px;
+}
+
+.pyq-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+  flex-wrap: wrap;
+}
+
+.pyq-subhead h3 {
+  margin: 0;
+  font-size: 1rem;
+}
+
+.pyq-year-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+}
+
+.pyq-year-card {
+  border-radius: 12px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.9);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.pyq-year-card p {
+  margin: 0;
+  font-weight: 600;
+}
+
+.pyq-year-card label {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.pyq-form {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.pyq-filter {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 12px 0 16px;
+  flex-wrap: wrap;
+}
+
+.pyq-filter input {
+  flex: 1;
+  min-width: 220px;
+}
+
+.pyq-file-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pyq-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .resources-controls {
@@ -969,10 +1095,18 @@ textarea {
   .form-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .pyq-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 640px) {
   .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .pyq-form {
     grid-template-columns: 1fr;
   }
 
