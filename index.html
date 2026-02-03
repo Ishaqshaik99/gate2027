@@ -11,24 +11,55 @@
   </head>
   <body>
     <div class="background-shapes" aria-hidden="true"></div>
-    <div class="app">
-      <header class="topbar">
-        <div class="brand">
-          <div class="badge">G7</div>
-          <div>
-            <p class="brand-title">GATE 2027 CSE Prep</p>
-            <p class="brand-subtitle">Plan, track, and revise with intent.</p>
-          </div>
+    <div class="app-shell" id="appShell">
+      <aside class="sidebar" id="sidebar" aria-label="Subject menu">
+        <div class="sidebar-header">
+          <p class="sidebar-title">Subjects</p>
+          <button class="ghost sidebar-close" id="sidebarClose" type="button" aria-label="Close menu">
+            Close
+          </button>
         </div>
-        <div class="header-actions">
-          <button class="ghost" id="importButton" type="button">Import</button>
-          <button class="ghost" id="exportButton" type="button">Export</button>
-          <button class="danger" id="resetButton" type="button">Reset</button>
-          <input type="file" id="importFile" accept="application/json" hidden />
-        </div>
-      </header>
+        <nav class="sidebar-nav" id="subjectMenu" aria-label="Subjects"></nav>
+        <p class="muted small sidebar-hint">Pick a subject to focus the dashboard content.</p>
+      </aside>
+      <div class="sidebar-overlay" id="sidebarOverlay" aria-hidden="true"></div>
 
-      <section class="hero">
+      <div class="app">
+        <header class="topbar">
+          <div class="topbar-left">
+            <button
+              class="sidebar-toggle"
+              id="sidebarToggle"
+              type="button"
+              aria-expanded="false"
+              aria-controls="sidebar"
+              aria-label="Open subjects menu"
+            >
+              <span class="burger" aria-hidden="true">
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+              Menu
+            </button>
+            <div class="brand">
+              <div class="badge">G7</div>
+              <div>
+                <p class="brand-title">GATE 2027 CSE Prep</p>
+                <p class="brand-subtitle">Plan, track, and revise with intent.</p>
+              </div>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button class="ghost" id="importButton" type="button">Import</button>
+            <button class="ghost" id="exportButton" type="button">Export</button>
+            <button class="danger" id="resetButton" type="button">Reset</button>
+            <input type="file" id="importFile" accept="application/json" hidden />
+          </div>
+        </header>
+
+        <main class="app-main">
+          <section class="hero" id="hero">
         <div class="hero-main">
           <h1>Let’s make every session count.</h1>
           <p>
@@ -77,21 +108,9 @@
             <span class="stat-foot">Based on logged tests.</span>
           </div>
         </div>
-      </section>
+          </section>
 
-      <div class="subject-nav-wrap" id="subjectNavWrap">
-        <button class="subject-toggle" id="subjectToggle" type="button" aria-expanded="false" aria-controls="subjectNav">
-          <span class="burger" aria-hidden="true">
-            <span></span>
-            <span></span>
-            <span></span>
-          </span>
-          Subjects
-        </button>
-        <nav class="subject-nav" id="subjectNav" aria-label="Subjects"></nav>
-      </div>
-
-      <section class="grid two-col" id="insights">
+          <section class="grid two-col" id="insights">
         <div class="card">
           <div class="card-head">
             <h2>Study Streak Map</h2>
@@ -114,9 +133,9 @@
           </div>
           <ul id="quizHistory" class="list"></ul>
         </div>
-      </section>
+          </section>
 
-      <section class="grid two-col" id="planner">
+          <section class="grid two-col" id="planner">
         <div class="card">
           <div class="card-head">
             <h2>Daily Planner</h2>
@@ -166,17 +185,33 @@
             </div>
           </div>
         </div>
-      </section>
+          </section>
 
-      <section class="card" id="syllabusSection">
+          <section class="card subject-header hidden" id="subjectHeader">
+            <div class="card-head">
+              <div>
+                <p class="muted small">Subject focus</p>
+                <h2 id="subjectTitle">Subject</h2>
+              </div>
+              <div class="subject-progress">
+                <span id="subjectProgressText">0/0</span>
+                <div class="progress-bar">
+                  <span id="subjectProgressFill"></span>
+                </div>
+              </div>
+            </div>
+            <p id="subjectSummary" class="muted">Track your progress in this subject.</p>
+          </section>
+
+          <section class="card" id="syllabusSection">
         <div class="card-head">
           <h2>Syllabus Tracker</h2>
           <span class="muted">Tick off each topic as you master it.</span>
         </div>
         <div id="syllabus" class="syllabus-grid"></div>
-      </section>
+          </section>
 
-      <section class="grid two-col" id="topicStudio">
+          <section class="grid two-col" id="topicStudio">
         <div class="card">
           <div class="card-head">
             <h2>Topic Explorer</h2>
@@ -232,9 +267,9 @@
             </div>
           </div>
         </div>
-      </section>
+          </section>
 
-      <section class="card" id="resourcesSection">
+          <section class="card" id="resourcesSection">
         <div class="card-head">
           <h2>Best Resources Library</h2>
           <span class="muted">Curated from trusted courses and open materials.</span>
@@ -262,9 +297,9 @@
           </form>
         </details>
         <div id="resourcesGrid" class="resources-grid"></div>
-      </section>
+          </section>
 
-      <section class="grid two-col" id="testsNotes">
+          <section class="grid two-col" id="testsNotes">
         <div class="card">
           <div class="card-head">
             <h2>Mock Tests</h2>
@@ -292,9 +327,11 @@
             <span id="notesStatus" class="muted small">Not saved yet.</span>
           </div>
         </div>
-      </section>
+          </section>
+        </main>
 
-      <footer class="footer">Built for consistent prep. Customize it as you go.</footer>
+        <footer class="footer">Built for consistent prep. Customize it as you go.</footer>
+      </div>
     </div>
 
     <div id="quizModal" class="modal hidden" role="dialog" aria-modal="true">

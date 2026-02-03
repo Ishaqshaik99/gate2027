@@ -11,6 +11,14 @@ const STORAGE_KEYS = {
   customResources: "gate2027.customResources",
 };
 
+const DEFAULT_VIEW = {
+  page: "overview",
+  category: "",
+  topic: "",
+  filter: "All",
+  sidebarOpen: false,
+};
+
 const syllabusData = [
   {
     category: "Engineering Mathematics",
@@ -1136,7 +1144,7 @@ const state = {
   focus: store.get(STORAGE_KEYS.focus, ["", "", ""]),
   studyLog: store.get(STORAGE_KEYS.studyLog, []),
   quizLog: store.get(STORAGE_KEYS.quizLog, []),
-  view: store.get(STORAGE_KEYS.view, { category: "", topic: "", filter: "All", navOpen: false }),
+  view: { ...DEFAULT_VIEW, ...store.get(STORAGE_KEYS.view, {}) },
   customResources: store.get(STORAGE_KEYS.customResources, []),
   lastQuizTopic: null,
 };
@@ -1152,9 +1160,24 @@ const elements = {
   statScore: document.getElementById("statScore"),
   statStreak: document.getElementById("statStreak"),
   statBest: document.getElementById("statBest"),
-  subjectNavWrap: document.getElementById("subjectNavWrap"),
-  subjectToggle: document.getElementById("subjectToggle"),
-  subjectNav: document.getElementById("subjectNav"),
+  appShell: document.getElementById("appShell"),
+  sidebar: document.getElementById("sidebar"),
+  sidebarToggle: document.getElementById("sidebarToggle"),
+  sidebarClose: document.getElementById("sidebarClose"),
+  sidebarOverlay: document.getElementById("sidebarOverlay"),
+  subjectMenu: document.getElementById("subjectMenu"),
+  subjectHeader: document.getElementById("subjectHeader"),
+  subjectTitle: document.getElementById("subjectTitle"),
+  subjectSummary: document.getElementById("subjectSummary"),
+  subjectProgressText: document.getElementById("subjectProgressText"),
+  subjectProgressFill: document.getElementById("subjectProgressFill"),
+  hero: document.getElementById("hero"),
+  insights: document.getElementById("insights"),
+  planner: document.getElementById("planner"),
+  syllabusSection: document.getElementById("syllabusSection"),
+  topicStudio: document.getElementById("topicStudio"),
+  resourcesSection: document.getElementById("resourcesSection"),
+  testsNotes: document.getElementById("testsNotes"),
   streakGrid: document.getElementById("streakGrid"),
   quizHistory: document.getElementById("quizHistory"),
   logStudy: document.getElementById("logStudy"),
@@ -1256,6 +1279,52 @@ const dedupeResources = (resources) => {
 };
 
 const getSubjectCategories = () => syllabusData.map((section) => section.category);
+
+const isSubjectView = () =>
+  state.view?.page === "subject" && state.view.filter && state.view.filter !== "All";
+
+const normalizeViewState = () => {
+  if (!state.view || typeof state.view !== "object") {
+    state.view = { ...DEFAULT_VIEW };
+  }
+
+  if (!state.view.filter) {
+    state.view.filter = "All";
+  }
+
+  if (typeof state.view.sidebarOpen !== "boolean") {
+    state.view.sidebarOpen = typeof state.view.navOpen === "boolean" ? state.view.navOpen : false;
+  }
+
+  if (!state.view.page) {
+    state.view.page =
+      state.view.filter && state.view.filter !== "All" ? "subject" : DEFAULT_VIEW.page;
+  }
+
+  if (!["overview", "subject"].includes(state.view.page)) {
+    state.view.page = "overview";
+  }
+
+  if (state.view.page === "subject" && (!state.view.filter || state.view.filter === "All")) {
+    state.view.page = "overview";
+  }
+
+  if (state.view.page === "overview") {
+    state.view.filter = "All";
+  }
+
+  const categories = getSubjectCategories();
+  if (!categories.includes(state.view.category)) {
+    state.view.category = categories[0];
+  }
+
+  const section = syllabusData.find((item) => item.category === state.view.category) || syllabusData[0];
+  if (!state.view.topic || !section?.items.some((item) => item.id === state.view.topic)) {
+    state.view.topic = section?.items[0]?.id || "";
+  }
+
+  store.set(STORAGE_KEYS.view, state.view);
+};
 
 const registerCustomResources = () => {
   if (!state.customResources?.length) return;
@@ -1646,69 +1715,137 @@ const showToast = (message) => {
   window.setTimeout(() => elements.toast.classList.add("hidden"), 2400);
 };
 
-const renderSubjectNav = () => {
-  if (!elements.subjectNav) return;
-  elements.subjectNav.innerHTML = "";
+const renderSidebarMenu = () => {
+  if (!elements.subjectMenu) return;
+  elements.subjectMenu.innerHTML = "";
   const subjects = getSubjectCategories();
-  const items = ["All", ...subjects];
 
-  items.forEach((subject) => {
+  const addButton = (label, isActive, onClick) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.textContent = subject;
-    const isActive =
-      (subject === "All" && (!state.view.filter || state.view.filter === "All")) ||
-      state.view.filter === subject;
+    button.textContent = label;
     if (isActive) {
       button.classList.add("active");
     }
-    button.addEventListener("click", () => {
-      if (subject === "All") {
-        state.view.filter = "All";
-        store.set(STORAGE_KEYS.view, state.view);
-        renderSubjectNav();
-        renderResourcesLibrary();
-        if (window.innerWidth <= 640) {
-          setNavOpen(false);
-        }
-        return;
-      }
+    button.addEventListener("click", onClick);
+    elements.subjectMenu.appendChild(button);
+  };
 
-      state.view.filter = subject;
-      state.view.category = subject;
-      const section = syllabusData.find((item) => item.category === subject);
-      state.view.topic = section?.items[0]?.id || "";
-      store.set(STORAGE_KEYS.view, state.view);
-      renderSubjectNav();
-      renderTopicExplorer();
-      renderResourcesLibrary();
-      document.getElementById("topicStudio")?.scrollIntoView({ behavior: "smooth" });
-      if (window.innerWidth <= 640) {
-        setNavOpen(false);
-      }
+  addButton("Overview", !isSubjectView(), () => {
+    setOverviewView();
+  });
+
+  subjects.forEach((subject) => {
+    const active = isSubjectView() && state.view.filter === subject;
+    addButton(subject, active, () => {
+      setSubjectView(subject);
     });
-    elements.subjectNav.appendChild(button);
   });
 };
 
-const setNavOpen = (isOpen) => {
-  state.view.navOpen = isOpen;
+const setOverviewView = () => {
+  state.view.page = "overview";
+  state.view.filter = "All";
   store.set(STORAGE_KEYS.view, state.view);
-  syncSubjectNavUI();
+  renderSidebarMenu();
+  renderView();
+  renderSyllabus();
+  renderResourcesLibrary();
+  renderTopicExplorer();
+  populateResourceCategories();
+  if (window.innerWidth <= 980) {
+    setSidebarOpen(false);
+  }
 };
 
-const syncSubjectNavUI = () => {
-  if (!elements.subjectNavWrap || !elements.subjectToggle) return;
-  const isOpen = Boolean(state.view?.navOpen);
-  elements.subjectNavWrap.classList.toggle("open", isOpen);
-  elements.subjectToggle.setAttribute("aria-expanded", String(isOpen));
+const setSubjectView = (subject) => {
+  state.view.page = "subject";
+  state.view.filter = subject;
+  state.view.category = subject;
+  const section = syllabusData.find((item) => item.category === subject);
+  state.view.topic = section?.items[0]?.id || "";
+  store.set(STORAGE_KEYS.view, state.view);
+  renderSidebarMenu();
+  renderView();
+  renderSyllabus();
+  renderResourcesLibrary();
+  renderTopicExplorer();
+  populateResourceCategories();
+  renderSubjectHeader();
+  document.getElementById("subjectHeader")?.scrollIntoView({ behavior: "smooth" });
+  if (window.innerWidth <= 980) {
+    setSidebarOpen(false);
+  }
+};
+
+const setSidebarOpen = (isOpen) => {
+  state.view.sidebarOpen = isOpen;
+  store.set(STORAGE_KEYS.view, state.view);
+  syncSidebarUI();
+};
+
+const syncSidebarUI = () => {
+  if (!elements.appShell) return;
+  const isOpen = Boolean(state.view?.sidebarOpen);
+  elements.appShell.classList.toggle("sidebar-open", isOpen);
+  if (elements.sidebarToggle) {
+    elements.sidebarToggle.setAttribute("aria-expanded", String(isOpen));
+  }
+  if (elements.sidebarOverlay) {
+    elements.sidebarOverlay.setAttribute("aria-hidden", String(!isOpen));
+  }
+};
+
+const renderSubjectHeader = () => {
+  if (
+    !elements.subjectHeader ||
+    !elements.subjectTitle ||
+    !elements.subjectSummary ||
+    !elements.subjectProgressText ||
+    !elements.subjectProgressFill
+  )
+    return;
+  if (!isSubjectView()) return;
+  const subject = state.view.filter;
+  const section = syllabusData.find((item) => item.category === subject);
+  if (!section) return;
+
+  const total = section.items.length;
+  const done = section.items.filter((item) => state.syllabus[item.id]).length;
+  const percent = total ? Math.round((done / total) * 100) : 0;
+
+  elements.subjectTitle.textContent = subject;
+  elements.subjectSummary.textContent = `${done}/${total} topics completed • ${percent}% mastery`;
+  elements.subjectProgressText.textContent = `${done}/${total}`;
+  elements.subjectProgressFill.style.width = `${percent}%`;
+};
+
+const renderView = () => {
+  const subjectMode = isSubjectView();
+
+  if (elements.hero) elements.hero.classList.toggle("hidden", subjectMode);
+  if (elements.insights) elements.insights.classList.toggle("hidden", subjectMode);
+  if (elements.planner) elements.planner.classList.toggle("hidden", subjectMode);
+  if (elements.testsNotes) elements.testsNotes.classList.toggle("hidden", subjectMode);
+
+  if (elements.subjectHeader) elements.subjectHeader.classList.toggle("hidden", !subjectMode);
+  if (elements.syllabusSection) elements.syllabusSection.classList.toggle("hidden", !subjectMode);
+  if (elements.topicStudio) elements.topicStudio.classList.toggle("hidden", !subjectMode);
+  if (elements.resourcesSection) elements.resourcesSection.classList.toggle("hidden", !subjectMode);
+
+  renderSubjectHeader();
 };
 
 const renderSyllabus = () => {
   elements.syllabus.innerHTML = "";
-  syllabusData.forEach((section) => {
+  const sections = isSubjectView()
+    ? syllabusData.filter((section) => section.category === state.view.filter)
+    : syllabusData;
+
+  sections.forEach((section) => {
     const card = document.createElement("div");
     card.className = "syllabus-category";
+    card.dataset.category = section.category;
 
     const head = document.createElement("div");
     head.className = "category-head";
@@ -1783,14 +1920,18 @@ const updateProgress = () => {
   let total = 0;
   let completed = 0;
 
+  syllabusData.forEach((section) => {
+    total += section.items.length;
+    completed += section.items.filter((item) => state.syllabus[item.id]).length;
+  });
+
   const cards = elements.syllabus.querySelectorAll(".syllabus-category");
-  cards.forEach((card, index) => {
-    const section = syllabusData[index];
+  cards.forEach((card) => {
+    const category = card.dataset.category;
+    const section = syllabusData.find((item) => item.category === category);
+    if (!section) return;
     const totalTopics = section.items.length;
     const doneTopics = section.items.filter((item) => state.syllabus[item.id]).length;
-
-    total += totalTopics;
-    completed += doneTopics;
 
     const progressText = card.querySelector(".progress-text");
     const progressFill = card.querySelector(".progress-fill");
@@ -1806,6 +1947,7 @@ const updateProgress = () => {
   elements.statTopics.textContent = `${completed}`;
 
   updateStats();
+  renderSubjectHeader();
 };
 
 const renderPlan = () => {
@@ -1997,18 +2139,19 @@ const getCategoryByTopic = (topicId) =>
   "";
 
 const renderTopicExplorer = () => {
-  const categories = syllabusData.map((section) => section.category);
-  if (!state.view.category || !categories.includes(state.view.category)) {
+  normalizeViewState();
+  const categories = getSubjectCategories();
+  const subjectMode = isSubjectView();
+  const activeCategory = subjectMode ? state.view.filter : state.view.category;
+
+  if (!categories.includes(activeCategory)) {
     state.view.category = categories[0];
-  }
-  if (!state.view.filter) {
-    state.view.filter = "All";
-  }
-  if (typeof state.view.navOpen !== "boolean") {
-    state.view.navOpen = false;
+  } else {
+    state.view.category = activeCategory;
   }
 
   elements.subjectSelect.innerHTML = "";
+  elements.subjectSelect.disabled = subjectMode;
   categories.forEach((category) => {
     const option = document.createElement("option");
     option.value = category;
@@ -2068,6 +2211,7 @@ const renderTopicExplorer = () => {
 
   store.set(STORAGE_KEYS.view, state.view);
 
+  populateDoubtTopics();
   if (elements.doubtTopic) {
     elements.doubtTopic.value = state.view.topic;
   }
@@ -2117,8 +2261,13 @@ const renderResourcesLibrary = () => {
 };
 
 const populateDoubtTopics = () => {
+  if (!elements.doubtTopic) return;
   elements.doubtTopic.innerHTML = "";
-  syllabusData.forEach((section) => {
+  const sections = isSubjectView()
+    ? syllabusData.filter((section) => section.category === state.view.filter)
+    : syllabusData;
+
+  sections.forEach((section) => {
     const group = document.createElement("optgroup");
     group.label = section.category;
     section.items.forEach((topic) => {
@@ -2489,7 +2638,7 @@ const bindEvents = () => {
         state.focus = payload.focus || ["", "", ""];
         state.studyLog = payload.studyLog || [];
         state.quizLog = payload.quizLog || [];
-        state.view = payload.view || { category: "", topic: "" };
+        state.view = { ...DEFAULT_VIEW, ...(payload.view || {}) };
         state.customResources = payload.customResources || [];
 
         store.set(STORAGE_KEYS.dailyPlan, state.plan);
@@ -2530,9 +2679,21 @@ const bindEvents = () => {
     });
   }
 
-  if (elements.subjectToggle) {
-    elements.subjectToggle.addEventListener("click", () => {
-      setNavOpen(!state.view.navOpen);
+  if (elements.sidebarToggle) {
+    elements.sidebarToggle.addEventListener("click", () => {
+      setSidebarOpen(!state.view.sidebarOpen);
+    });
+  }
+
+  if (elements.sidebarClose) {
+    elements.sidebarClose.addEventListener("click", () => {
+      setSidebarOpen(false);
+    });
+  }
+
+  if (elements.sidebarOverlay) {
+    elements.sidebarOverlay.addEventListener("click", () => {
+      setSidebarOpen(false);
     });
   }
 
@@ -2568,10 +2729,16 @@ const bindEvents = () => {
   });
 
   elements.subjectSelect.addEventListener("change", (event) => {
-    state.view.category = event.target.value;
+    const nextCategory = event.target.value;
+    if (isSubjectView()) {
+      setSubjectView(nextCategory);
+      return;
+    }
+    state.view.category = nextCategory;
     const section = syllabusData.find((item) => item.category === state.view.category);
     state.view.topic = section?.items[0]?.id || "";
     renderTopicExplorer();
+    populateResourceCategories();
   });
 
   elements.topicSelect.addEventListener("change", (event) => {
@@ -2631,6 +2798,7 @@ const updatePomodoroUI = () => {
 };
 
 const loadState = () => {
+  normalizeViewState();
   elements.targetDate.value = state.targetDate || "";
   elements.notes.value = state.notes || "";
   elements.notesStatus.textContent = state.notes ? "Saved" : "Not saved yet.";
@@ -2641,16 +2809,16 @@ const loadState = () => {
 };
 
 const renderAll = () => {
+  renderSidebarMenu();
+  syncSidebarUI();
+  renderView();
   renderSyllabus();
   renderPlan();
   renderTests();
   renderStreakGrid();
   renderQuizHistory();
-  renderSubjectNav();
-  syncSubjectNavUI();
   populateResourceCategories();
   renderResourcesLibrary();
-  populateDoubtTopics();
   renderTopicExplorer();
   updatePomodoroUI();
   updateStats();
