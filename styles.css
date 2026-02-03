@@ -210,8 +210,39 @@ button.danger {
   grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
 }
 
-.subject-nav {
+.subject-nav-wrap {
   margin-top: 24px;
+}
+
+.subject-toggle {
+  display: none;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: rgba(255, 255, 255, 0.95);
+  color: var(--accent-strong);
+  font-weight: 600;
+  box-shadow: none;
+}
+
+.subject-toggle .burger {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.subject-toggle .burger span {
+  display: block;
+  width: 18px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+}
+
+.subject-nav {
+  margin-top: 12px;
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
@@ -839,5 +870,18 @@ textarea {
 
   .resources-controls {
     flex-direction: column;
+  }
+
+  .subject-toggle {
+    display: inline-flex;
+  }
+
+  .subject-nav {
+    display: none;
+    flex-direction: column;
+  }
+
+  .subject-nav-wrap.open .subject-nav {
+    display: flex;
   }
 }

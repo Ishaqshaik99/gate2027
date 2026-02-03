@@ -1136,7 +1136,7 @@ const state = {
   focus: store.get(STORAGE_KEYS.focus, ["", "", ""]),
   studyLog: store.get(STORAGE_KEYS.studyLog, []),
   quizLog: store.get(STORAGE_KEYS.quizLog, []),
-  view: store.get(STORAGE_KEYS.view, { category: "", topic: "", filter: "All" }),
+  view: store.get(STORAGE_KEYS.view, { category: "", topic: "", filter: "All", navOpen: false }),
   customResources: store.get(STORAGE_KEYS.customResources, []),
   lastQuizTopic: null,
 };
@@ -1152,6 +1152,8 @@ const elements = {
   statScore: document.getElementById("statScore"),
   statStreak: document.getElementById("statStreak"),
   statBest: document.getElementById("statBest"),
+  subjectNavWrap: document.getElementById("subjectNavWrap"),
+  subjectToggle: document.getElementById("subjectToggle"),
   subjectNav: document.getElementById("subjectNav"),
   streakGrid: document.getElementById("streakGrid"),
   quizHistory: document.getElementById("quizHistory"),
@@ -1666,6 +1668,9 @@ const renderSubjectNav = () => {
         store.set(STORAGE_KEYS.view, state.view);
         renderSubjectNav();
         renderResourcesLibrary();
+        if (window.innerWidth <= 640) {
+          setNavOpen(false);
+        }
         return;
       }
 
@@ -1678,9 +1683,25 @@ const renderSubjectNav = () => {
       renderTopicExplorer();
       renderResourcesLibrary();
       document.getElementById("topicStudio")?.scrollIntoView({ behavior: "smooth" });
+      if (window.innerWidth <= 640) {
+        setNavOpen(false);
+      }
     });
     elements.subjectNav.appendChild(button);
   });
+};
+
+const setNavOpen = (isOpen) => {
+  state.view.navOpen = isOpen;
+  store.set(STORAGE_KEYS.view, state.view);
+  syncSubjectNavUI();
+};
+
+const syncSubjectNavUI = () => {
+  if (!elements.subjectNavWrap || !elements.subjectToggle) return;
+  const isOpen = Boolean(state.view?.navOpen);
+  elements.subjectNavWrap.classList.toggle("open", isOpen);
+  elements.subjectToggle.setAttribute("aria-expanded", String(isOpen));
 };
 
 const renderSyllabus = () => {
@@ -1982,6 +2003,9 @@ const renderTopicExplorer = () => {
   }
   if (!state.view.filter) {
     state.view.filter = "All";
+  }
+  if (typeof state.view.navOpen !== "boolean") {
+    state.view.navOpen = false;
   }
 
   elements.subjectSelect.innerHTML = "";
@@ -2506,6 +2530,12 @@ const bindEvents = () => {
     });
   }
 
+  if (elements.subjectToggle) {
+    elements.subjectToggle.addEventListener("click", () => {
+      setNavOpen(!state.view.navOpen);
+    });
+  }
+
   elements.pomodoroStart.addEventListener("click", () => {
     if (pomodoro.running) return;
     pomodoro.running = true;
@@ -2617,6 +2647,7 @@ const renderAll = () => {
   renderStreakGrid();
   renderQuizHistory();
   renderSubjectNav();
+  syncSubjectNavUI();
   populateResourceCategories();
   renderResourcesLibrary();
   populateDoubtTopics();
