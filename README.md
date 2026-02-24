@@ -14,6 +14,15 @@ EduTwin AI is an end-to-end web application focused on educational accessibility
 - AI-generated intervention suggestions (`/api/teacher/:classId/interventions`)
 - Demo data seeding for presentations (`/api/demo/seed`)
 
+## Live deployment
+
+This repository is deployed on GitHub Pages at:
+
+- `https://ishaqshaik99.github.io/gate2027/`
+
+Because GitHub Pages is static hosting, the app auto-switches to a built-in local API fallback mode in the browser.  
+For full Node backend mode, run locally with `npm start`.
+
 ## Tech
 
 - Frontend: Vanilla HTML/CSS/JS (single-page)

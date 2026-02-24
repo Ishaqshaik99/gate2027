@@ -136,7 +136,702 @@ const restoreSession = () => {
   }
 };
 
+const LOCAL_DB_KEY = "edutwin.localdb.v1";
+let localFallbackEnabled = window.location.hostname.endsWith("github.io");
+
+const LOCAL_CONCEPTS = [
+  { id: "recursion", label: "Recursion", analogy: "nested dolls" },
+  { id: "arrays", label: "Arrays", analogy: "numbered lockers" },
+  { id: "binary-search", label: "Binary Search", analogy: "dictionary lookup" },
+  { id: "sql-joins", label: "SQL Joins", analogy: "matching attendance sheets" },
+  { id: "stack", label: "Stack", analogy: "a stack of plates" },
+];
+
+const createLocalDb = () => ({
+  users: [],
+  conceptMastery: [],
+  quizSessions: [],
+  quizAttempts: [],
+});
+
+const localNow = () => new Date().toISOString();
+const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+const randomId = (prefix) => `${prefix}_${Math.random().toString(16).slice(2, 12)}`;
+
+const loadLocalDb = () => {
+  const raw = localStorage.getItem(LOCAL_DB_KEY);
+  if (!raw) return createLocalDb();
+  try {
+    const parsed = JSON.parse(raw);
+    return {
+      users: Array.isArray(parsed.users) ? parsed.users : [],
+      conceptMastery: Array.isArray(parsed.conceptMastery) ? parsed.conceptMastery : [],
+      quizSessions: Array.isArray(parsed.quizSessions) ? parsed.quizSessions : [],
+      quizAttempts: Array.isArray(parsed.quizAttempts) ? parsed.quizAttempts : [],
+    };
+  } catch (error) {
+    return createLocalDb();
+  }
+};
+
+const saveLocalDb = (db) => {
+  localStorage.setItem(LOCAL_DB_KEY, JSON.stringify(db));
+};
+
+const parseBody = (body) => {
+  if (!body) return {};
+  if (typeof body === "string") {
+    try {
+      return JSON.parse(body);
+    } catch (error) {
+      return {};
+    }
+  }
+  return body;
+};
+
+const findConcept = (conceptId) => LOCAL_CONCEPTS.find((item) => item.id === conceptId) || LOCAL_CONCEPTS[0];
+
+const getMasteryRows = (db, userId) => db.conceptMastery.filter((row) => row.userId === userId);
+
+const getConceptMastery = (db, userId, conceptId) =>
+  db.conceptMastery.find((row) => row.userId === userId && row.conceptId === conceptId) || null;
+
+const scoreToRisk = (masteryAverage, recentScoreAverage) => {
+  if (masteryAverage < 45 || recentScoreAverage < 45) return "high";
+  if (masteryAverage < 65 || recentScoreAverage < 65) return "medium";
+  return "low";
+};
+
+const userRisk = (db, userId) => {
+  const masteryRows = getMasteryRows(db, userId);
+  const masteryAverage = masteryRows.length
+    ? (masteryRows.reduce((sum, row) => sum + row.mastery, 0) / masteryRows.length) * 100
+    : 0;
+  const recentScores = db.quizAttempts
+    .filter((attempt) => attempt.userId === userId)
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt))
+    .slice(0, 3);
+  const recentScoreAverage = recentScores.length
+    ? recentScores.reduce((sum, item) => sum + item.scorePercent, 0) / recentScores.length
+    : 100;
+  return scoreToRisk(masteryAverage, recentScoreAverage);
+};
+
+const pickDifficulty = (mastery) => {
+  if (mastery < 0.4) return "beginner";
+  if (mastery < 0.7) return "intermediate";
+  return "advanced";
+};
+
+const buildQuestionTemplates = (concept, difficulty) => {
+  const lower = concept.label.toLowerCase();
+  const templates = {
+    beginner: [
+      {
+        stem: `What best describes ${lower}?`,
+        options: [
+          `Breaking problems into understandable steps`,
+          `Skipping examples and memorizing directly`,
+          `Avoiding base rules`,
+          `Random trial without logic`,
+        ],
+        answer: 0,
+        bloom: "Understand",
+        explanation: "Strong understanding starts with clear step-wise reasoning.",
+      },
+      {
+        stem: `In ${lower}, what should learners check first?`,
+        options: ["Boundary/base condition", "UI theme", "Database scaling", "Compiler cache"],
+        answer: 0,
+        bloom: "Remember",
+        explanation: "Boundary/base checks prevent common logic errors.",
+      },
+      {
+        stem: `Which habit improves ${lower} mastery fastest?`,
+        options: ["Trace with small examples", "Memorize final answers only", "Skip mistakes", "Avoid feedback"],
+        answer: 0,
+        bloom: "Apply",
+        explanation: "Tracing small examples reveals hidden misunderstandings quickly.",
+      },
+      {
+        stem: `Why use analogy while learning ${lower}?`,
+        options: [
+          "To connect abstract ideas to familiar context",
+          "To replace practice entirely",
+          "To avoid reading questions",
+          "To remove need for logic",
+        ],
+        answer: 0,
+        bloom: "Understand",
+        explanation: "Analogies improve comprehension for first-time learners.",
+      },
+      {
+        stem: `A common beginner error in ${lower} is:`,
+        options: ["Ignoring edge cases", "Using comments", "Reading output", "Testing code"],
+        answer: 0,
+        bloom: "Analyze",
+        explanation: "Edge-case checks improve correctness and confidence.",
+      },
+    ],
+    intermediate: [
+      {
+        stem: `How should you debug errors in ${lower}?`,
+        options: [
+          "Check assumptions and trace each step",
+          "Only re-run same input",
+          "Hide outputs and guess",
+          "Delete constraints",
+        ],
+        answer: 0,
+        bloom: "Analyze",
+        explanation: "Tracing assumptions catches logical mistakes systematically.",
+      },
+      {
+        stem: `What indicates improving proficiency in ${lower}?`,
+        options: [
+          "Consistent performance on varied problems",
+          "Memorizing one solved pattern only",
+          "Avoiding timed practice",
+          "Ignoring wrong attempts",
+        ],
+        answer: 0,
+        bloom: "Evaluate",
+        explanation: "Transfer across varied problems indicates deeper understanding.",
+      },
+      {
+        stem: `In ${lower}, intervention after mistakes should be:`,
+        options: [
+          "Immediate feedback with one corrected example",
+          "No feedback and continue",
+          "Only final score",
+          "Penalty only",
+        ],
+        answer: 0,
+        bloom: "Apply",
+        explanation: "Immediate, specific feedback improves retention.",
+      },
+      {
+        stem: `Best self-check for ${lower} before submission?`,
+        options: [
+          "Run one normal case and one edge case",
+          "Check only formatting",
+          "Check only variable names",
+          "Skip validation",
+        ],
+        answer: 0,
+        bloom: "Apply",
+        explanation: "Both regular and edge-case checks reduce silent failures.",
+      },
+      {
+        stem: `How should teacher support ${lower} confusion?`,
+        options: [
+          "Use short visual walkthrough + quick quiz",
+          "Only assign homework",
+          "Skip revision",
+          "Increase difficulty immediately",
+        ],
+        answer: 0,
+        bloom: "Create",
+        explanation: "Visual explanation plus quick checks improves concept clarity.",
+      },
+    ],
+    advanced: [
+      {
+        stem: `Advanced learning in ${lower} is best measured by:`,
+        options: [
+          "Explaining solutions and trade-offs clearly",
+          "Speed alone",
+          "UI styling quality",
+          "Number of tabs opened",
+        ],
+        answer: 0,
+        bloom: "Evaluate",
+        explanation: "Advanced mastery includes reasoning and trade-off articulation.",
+      },
+      {
+        stem: `When optimizing ${lower}, prioritize:`,
+        options: [
+          "Correctness first, then efficiency",
+          "Efficiency without correctness",
+          "Skipping test cases",
+          "Ignoring constraints",
+        ],
+        answer: 0,
+        bloom: "Evaluate",
+        explanation: "Optimization should not compromise correctness.",
+      },
+      {
+        stem: `A robust strategy for complex ${lower} problems is:`,
+        options: [
+          "Decompose, test assumptions, iterate",
+          "Memorize one answer format",
+          "Avoid uncertainty checks",
+          "Bypass reviews",
+        ],
+        answer: 0,
+        bloom: "Create",
+        explanation: "Structured decomposition prevents brittle solutions.",
+      },
+      {
+        stem: `Which behavior reflects expert-level ${lower}?`,
+        options: [
+          "Handling corner cases and explaining decisions",
+          "Ignoring weak topics",
+          "Copying solutions blindly",
+          "Skipping reflection",
+        ],
+        answer: 0,
+        bloom: "Analyze",
+        explanation: "Experts explain reasoning and handle edge constraints reliably.",
+      },
+      {
+        stem: `Best intervention for high performers in ${lower}:`,
+        options: [
+          "Challenge problems + peer teaching",
+          "Repeat basics only forever",
+          "Reduce feedback",
+          "Remove progression",
+        ],
+        answer: 0,
+        bloom: "Create",
+        explanation: "Challenge plus teaching others solidifies advanced understanding.",
+      },
+    ],
+  };
+
+  return templates[difficulty].map((item, index) => ({
+    id: `${concept.id}-${difficulty}-${index + 1}`,
+    stem: item.stem,
+    options: item.options,
+    answer: item.answer,
+    bloom: item.bloom,
+    difficulty,
+    explanation: item.explanation,
+  }));
+};
+
+const updateMasteryRecord = (db, userId, conceptId, scorePercent, totalQuestions) => {
+  const ratio = clamp(scorePercent / 100, 0, 1);
+  const record = getConceptMastery(db, userId, conceptId);
+  if (!record) {
+    const created = {
+      id: randomId("mastery"),
+      userId,
+      conceptId,
+      mastery: ratio,
+      attempts: 1,
+      totalQuestions,
+      updatedAt: localNow(),
+    };
+    db.conceptMastery.push(created);
+    return created;
+  }
+
+  const previousWeight = Math.max(record.totalQuestions || 0, 1);
+  const newWeight = previousWeight + totalQuestions;
+  record.mastery = clamp((record.mastery * previousWeight + ratio * totalQuestions) / newWeight, 0, 1);
+  record.attempts += 1;
+  record.totalQuestions = newWeight;
+  record.updatedAt = localNow();
+  return record;
+};
+
+const localStudentInsights = (db, user) => {
+  const attempts = db.quizAttempts
+    .filter((item) => item.userId === user.id)
+    .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+  const masteryRows = getMasteryRows(db, user.id).sort((a, b) => a.mastery - b.mastery);
+
+  const masteryList = masteryRows.map((row) => ({
+    conceptId: row.conceptId,
+    conceptLabel: findConcept(row.conceptId).label,
+    masteryPercent: Math.round(row.mastery * 100),
+    attempts: row.attempts,
+    updatedAt: row.updatedAt,
+  }));
+
+  const averageScore = attempts.length
+    ? Math.round(attempts.reduce((sum, item) => sum + item.scorePercent, 0) / attempts.length)
+    : 0;
+  const masteryAverage = masteryList.length
+    ? Math.round(masteryList.reduce((sum, item) => sum + item.masteryPercent, 0) / masteryList.length)
+    : 0;
+
+  return {
+    student: {
+      id: user.id,
+      name: user.name,
+      classId: user.classId,
+      language: user.language,
+    },
+    metrics: {
+      attemptedQuizzes: attempts.length,
+      averageScore,
+      masteryAverage,
+      riskLevel: userRisk(db, user.id),
+    },
+    weakTopics: masteryList.slice(0, 3),
+    strongTopics: [...masteryList].reverse().slice(0, 2),
+    recentScores: attempts.slice(0, 5).map((item) => ({
+      conceptId: item.conceptId,
+      conceptLabel: findConcept(item.conceptId).label,
+      scorePercent: item.scorePercent,
+      submittedAt: item.submittedAt,
+    })),
+    mastery: masteryList,
+  };
+};
+
+const localTeacherDashboard = (db, classId) => {
+  const students = db.users.filter((user) => user.role === "student" && user.classId === classId);
+  const attempts = db.quizAttempts.filter((item) => item.classId === classId);
+  const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
+  const confusionByConcept = LOCAL_CONCEPTS.map((concept) => {
+    const rows = db.conceptMastery.filter(
+      (row) => row.conceptId === concept.id && students.some((student) => student.id === row.userId)
+    );
+    const mastery = rows.length ? rows.reduce((sum, row) => sum + row.mastery, 0) / rows.length : 0;
+    return {
+      conceptId: concept.id,
+      conceptLabel: concept.label,
+      confusionPercent: Math.round((1 - mastery) * 100),
+      averageMasteryPercent: Math.round(mastery * 100),
+      attemptedStudents: rows.length,
+    };
+  }).sort((a, b) => b.confusionPercent - a.confusionPercent);
+
+  const atRiskStudents = students
+    .map((student) => {
+      const masteryRows = getMasteryRows(db, student.id);
+      const attemptsForStudent = attempts
+        .filter((attempt) => attempt.userId === student.id)
+        .sort((a, b) => new Date(b.submittedAt) - new Date(a.submittedAt));
+      const avgMastery = masteryRows.length
+        ? Math.round((masteryRows.reduce((sum, row) => sum + row.mastery, 0) / masteryRows.length) * 100)
+        : 0;
+      const weakest = masteryRows.sort((a, b) => a.mastery - b.mastery)[0];
+      return {
+        id: student.id,
+        name: student.name,
+        riskLevel: userRisk(db, student.id),
+        averageMasteryPercent: avgMastery,
+        latestScore: attemptsForStudent[0]?.scorePercent || 0,
+        attemptCount: attemptsForStudent.length,
+        weakestConcept: weakest ? findConcept(weakest.conceptId).label : "No data yet",
+      };
+    })
+    .filter((student) => student.riskLevel !== "low")
+    .sort((a, b) => {
+      if (a.riskLevel === b.riskLevel) return a.averageMasteryPercent - b.averageMasteryPercent;
+      return a.riskLevel === "high" ? -1 : 1;
+    });
+
+  const activeStudents7d = new Set(
+    attempts.filter((item) => new Date(item.submittedAt).getTime() >= sevenDaysAgo).map((item) => item.userId)
+  ).size;
+
+  return {
+    classId,
+    metrics: {
+      totalStudents: students.length,
+      activeStudents7d,
+      averageScore: attempts.length
+        ? Math.round(attempts.reduce((sum, item) => sum + item.scorePercent, 0) / attempts.length)
+        : 0,
+      atRiskCount: atRiskStudents.length,
+      silentStrugglerCount: atRiskStudents.filter((item) => item.attemptCount < 2).length,
+    },
+    confusionByConcept,
+    atRiskStudents,
+    silentStrugglers: atRiskStudents.filter((item) => item.attemptCount < 2),
+  };
+};
+
+const localInterventions = (dashboard) => {
+  const list = [];
+  const top = dashboard.confusionByConcept[0];
+  if (top && top.confusionPercent > 35) {
+    list.push({
+      title: `Re-teach ${top.conceptLabel} with visual walkthrough`,
+      action: "Do a 15-minute example trace and run a 3-question pulse quiz.",
+      rationale: `${top.confusionPercent}% confusion detected in this concept.`,
+      target: `${top.attemptedStudents} students attempted this topic.`,
+    });
+  }
+  if (dashboard.atRiskStudents.length) {
+    list.push({
+      title: "Targeted support for at-risk students",
+      action: "Assign short remediation set and conduct quick one-on-one check.",
+      rationale: `${dashboard.atRiskStudents.length} students are medium/high risk.`,
+      target: dashboard.atRiskStudents
+        .slice(0, 3)
+        .map((item) => item.name)
+        .join(", "),
+    });
+  }
+  if (!list.length) {
+    list.push({
+      title: "Maintain momentum",
+      action: "Continue adaptive quizzes and monitor concept confusion trend weekly.",
+      rationale: "No major risk spikes in current data.",
+      target: "Entire class",
+    });
+  }
+  return list;
+};
+
+const localApi = async (path, options = {}) => {
+  const method = (options.method || "GET").toUpperCase();
+  const body = parseBody(options.body);
+  const db = loadLocalDb();
+
+  if (path === "/api/health" && method === "GET") {
+    return { ok: true, app: "EduTwin AI", mode: "local-fallback", model: "local" };
+  }
+
+  if (path === "/api/concepts" && method === "GET") {
+    return LOCAL_CONCEPTS.map((item) => ({ id: item.id, label: item.label }));
+  }
+
+  if (path === "/api/users" && method === "POST") {
+    const name = String(body.name || "").trim();
+    const role = String(body.role || "").trim();
+    const classId = classIdSafe(body.classId || "cse-fy-a");
+    const language = String(body.language || "en").trim().toLowerCase();
+
+    if (!name) throw new Error("Name is required.");
+    if (role !== "student" && role !== "teacher") throw new Error("Role must be student or teacher.");
+
+    let user = db.users.find(
+      (item) => item.role === role && item.classId === classId && slugify(item.name) === slugify(name)
+    );
+    if (!user) {
+      user = {
+        id: randomId(role),
+        name,
+        role,
+        classId,
+        language,
+        createdAt: localNow(),
+      };
+      db.users.push(user);
+      saveLocalDb(db);
+    }
+    return { user };
+  }
+
+  if (path === "/api/explain" && method === "POST") {
+    const user = db.users.find((item) => item.id === body.userId);
+    if (!user) throw new Error("User not found.");
+    const concept = findConcept(body.conceptId);
+    const question = String(body.question || "").trim();
+    if (!question) throw new Error("Question is required.");
+
+    return {
+      conceptId: concept.id,
+      conceptLabel: concept.label,
+      language: user.language,
+      source: "local",
+      explanation: [
+        `Concept: ${concept.label}`,
+        `Think of it like ${concept.analogy}.`,
+        `Question: ${question}`,
+        "",
+        "Steps:",
+        "1. Start from one small example.",
+        "2. Validate boundary or edge case.",
+        "3. Explain the rule in your own words.",
+        "",
+        "Self-check: Can you solve one similar question without notes?",
+      ].join("\n"),
+    };
+  }
+
+  if (path === "/api/quiz/generate" && method === "POST") {
+    const user = db.users.find((item) => item.id === body.userId);
+    if (!user) throw new Error("User not found.");
+    const concept = findConcept(body.conceptId);
+    const mastery = getConceptMastery(db, user.id, concept.id)?.mastery || 0.3;
+    const difficulty = pickDifficulty(mastery);
+    const questions = buildQuestionTemplates(concept, difficulty);
+    const sessionId = randomId("quiz");
+
+    db.quizSessions.push({
+      id: sessionId,
+      userId: user.id,
+      conceptId: concept.id,
+      difficulty,
+      createdAt: localNow(),
+      questions,
+    });
+    saveLocalDb(db);
+
+    return {
+      sessionId,
+      conceptId: concept.id,
+      conceptLabel: concept.label,
+      difficulty,
+      questions: questions.map((item) => ({
+        id: item.id,
+        stem: item.stem,
+        options: item.options,
+        bloom: item.bloom,
+        difficulty: item.difficulty,
+      })),
+    };
+  }
+
+  if (path === "/api/quiz/submit" && method === "POST") {
+    const user = db.users.find((item) => item.id === body.userId);
+    if (!user) throw new Error("User not found.");
+    const answers = body.answers && typeof body.answers === "object" ? body.answers : {};
+    const sessionIndex = db.quizSessions.findIndex((item) => item.id === body.sessionId && item.userId === user.id);
+    if (sessionIndex === -1) throw new Error("Quiz session not found or expired.");
+
+    const session = db.quizSessions[sessionIndex];
+    const feedback = session.questions.map((question) => {
+      const selectedIndex = Number.isInteger(answers[question.id]) ? answers[question.id] : -1;
+      const isCorrect = selectedIndex === question.answer;
+      return {
+        questionId: question.id,
+        stem: question.stem,
+        selectedIndex,
+        correctIndex: question.answer,
+        isCorrect,
+        explanation: question.explanation,
+      };
+    });
+
+    const correctCount = feedback.filter((item) => item.isCorrect).length;
+    const totalQuestions = feedback.length;
+    const scorePercent = Math.round((correctCount / Math.max(totalQuestions, 1)) * 100);
+    const masteryRecord = updateMasteryRecord(db, user.id, session.conceptId, scorePercent, totalQuestions);
+
+    const attempt = {
+      id: randomId("attempt"),
+      userId: user.id,
+      classId: user.classId,
+      conceptId: session.conceptId,
+      scorePercent,
+      correctCount,
+      totalQuestions,
+      submittedAt: localNow(),
+    };
+    db.quizAttempts.push(attempt);
+    db.quizSessions.splice(sessionIndex, 1);
+    saveLocalDb(db);
+
+    return {
+      attempt,
+      mastery: {
+        conceptId: session.conceptId,
+        conceptLabel: findConcept(session.conceptId).label,
+        masteryPercent: Math.round(masteryRecord.mastery * 100),
+        riskLevel: userRisk(db, user.id),
+      },
+      feedback,
+      recommendation:
+        scorePercent < 60
+          ? "Revise with one worked example and retry a beginner quiz."
+          : "Good progress. Continue with intermediate and challenge questions.",
+    };
+  }
+
+  const studentInsightsMatch = path.match(/^\/api\/student\/([^/]+)\/insights$/);
+  if (studentInsightsMatch && method === "GET") {
+    const userId = decodeURIComponent(studentInsightsMatch[1]);
+    const user = db.users.find((item) => item.id === userId && item.role === "student");
+    if (!user) throw new Error("Student not found.");
+    return localStudentInsights(db, user);
+  }
+
+  if (path === "/api/demo/seed" && method === "POST") {
+    const classId = classIdSafe(body.classId || "cse-fy-a");
+    const demoNames = ["Anjali", "Rahul", "Meera", "Varun", "Nisha", "Arjun", "Pooja", "Kiran", "Sneha", "Fahad"];
+
+    demoNames.forEach((name, idx) => {
+      let student = db.users.find(
+        (item) => item.role === "student" && item.classId === classId && slugify(item.name) === slugify(name)
+      );
+      if (!student) {
+        student = {
+          id: randomId("student"),
+          name,
+          role: "student",
+          classId,
+          language: idx % 3 === 0 ? "te" : "en",
+          createdAt: localNow(),
+        };
+        db.users.push(student);
+      }
+
+      LOCAL_CONCEPTS.forEach((concept) => {
+        if (!getConceptMastery(db, student.id, concept.id)) {
+          const mastery = clamp(0.25 + Math.random() * 0.55, 0, 1);
+          db.conceptMastery.push({
+            id: randomId("mastery"),
+            userId: student.id,
+            conceptId: concept.id,
+            mastery,
+            attempts: 1,
+            totalQuestions: 5,
+            updatedAt: localNow(),
+          });
+          db.quizAttempts.push({
+            id: randomId("attempt"),
+            userId: student.id,
+            classId,
+            conceptId: concept.id,
+            scorePercent: Math.round(mastery * 100),
+            correctCount: Math.round(mastery * 5),
+            totalQuestions: 5,
+            submittedAt: localNow(),
+          });
+        }
+      });
+    });
+
+    saveLocalDb(db);
+    return {
+      classId,
+      createdStudents: demoNames.length,
+      totalStudents: db.users.filter((item) => item.role === "student" && item.classId === classId).length,
+    };
+  }
+
+  const dashboardMatch = path.match(/^\/api\/teacher\/([^/]+)\/dashboard$/);
+  if (dashboardMatch && method === "GET") {
+    const classId = classIdSafe(decodeURIComponent(dashboardMatch[1]));
+    return localTeacherDashboard(db, classId);
+  }
+
+  const interventionsMatch = path.match(/^\/api\/teacher\/([^/]+)\/interventions$/);
+  if (interventionsMatch && method === "POST") {
+    const classId = classIdSafe(decodeURIComponent(interventionsMatch[1]));
+    const dashboard = localTeacherDashboard(db, classId);
+    return {
+      classId,
+      generatedAt: localNow(),
+      interventions: localInterventions(dashboard),
+    };
+  }
+
+  throw new Error("API route not found.");
+};
+
+const enableLocalFallback = () => {
+  if (localFallbackEnabled) return;
+  localFallbackEnabled = true;
+  setApiStatus("Local Mode (Static Deploy)", "medium");
+};
+
 const apiRequest = async (path, options = {}) => {
+  if (localFallbackEnabled && path.startsWith("/api/")) {
+    return localApi(path, options);
+  }
+
   const init = {
     headers: {
       "Content-Type": "application/json",
@@ -145,15 +840,42 @@ const apiRequest = async (path, options = {}) => {
     ...options,
   };
 
-  const response = await fetch(path, init);
-  const raw = await response.text();
-  const data = raw ? JSON.parse(raw) : {};
+  try {
+    const response = await fetch(path, init);
+    const raw = await response.text();
+    let data = {};
 
-  if (!response.ok) {
-    throw new Error(data?.error || `Request failed (${response.status})`);
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch (error) {
+      if (path.startsWith("/api/") && response.status === 404) {
+        enableLocalFallback();
+        return localApi(path, options);
+      }
+      throw new Error("Invalid server response.");
+    }
+
+    if (!response.ok) {
+      if (path.startsWith("/api/") && response.status === 404) {
+        enableLocalFallback();
+        return localApi(path, options);
+      }
+      throw new Error(data?.error || `Request failed (${response.status})`);
+    }
+
+    return data;
+  } catch (error) {
+    const networkLikeError =
+      error?.message?.includes("Failed to fetch") ||
+      error?.message?.includes("NetworkError") ||
+      error?.message?.includes("Invalid server response.");
+
+    if (path.startsWith("/api/") && networkLikeError) {
+      enableLocalFallback();
+      return localApi(path, options);
+    }
+    throw error;
   }
-
-  return data;
 };
 
 const setRole = (role) => {
@@ -215,6 +937,10 @@ const speakText = (text) => {
 const checkApiHealth = async () => {
   try {
     const data = await apiRequest("/api/health", { method: "GET" });
+    if (data?.mode === "local-fallback") {
+      setApiStatus("Local Mode (Static Deploy)", "medium");
+      return;
+    }
     const model = data?.model ? ` | ${data.model}` : "";
     setApiStatus(`API Online${model}`, "low");
   } catch (error) {
