@@ -1,49 +1,60 @@
-# GATE 2027 CSE Prep App (Offline)
+# EduTwin AI Web Application
 
-A lightweight, offline-first dashboard to plan your daily study, track the GATE CSE syllabus, log mock tests, run topic quizzes, and keep revision notes.
+EduTwin AI is an end-to-end web application focused on educational accessibility, personalization, and teacher decision support.
 
-## Features
+## What this app includes
 
-- Topic tracker with auto-quiz on completion
-- Study streak tracking + streak map
-- Quiz history panel
-- Curated resource library per subject (including YouTube + Telegram links)
-- Add your own resources + search filter
-- Offline doubt solver (local notes + summaries)
-- Topic visuals for quick mental maps
-- Offline-capable installable PWA
+- Student Learning Twin
+- Multilingual explain mode (`/api/explain`) with OpenAI fallback to local explain engine
+- Adaptive 5-question micro-quizzes (`/api/quiz/generate`, `/api/quiz/submit`)
+- Student weak-topic + risk insights (`/api/student/:id/insights`)
+- Teacher Insight Twin
+- Class concept-confusion dashboard (`/api/teacher/:classId/dashboard`)
+- At-risk and silent-struggler detection
+- AI-generated intervention suggestions (`/api/teacher/:classId/interventions`)
+- Demo data seeding for presentations (`/api/demo/seed`)
 
-## Run (offline)
+## Tech
+
+- Frontend: Vanilla HTML/CSS/JS (single-page)
+- Backend: Node.js HTTP server (`server.js`)
+- Persistence: local JSON file at `data/edutwin-db.json`
+- Optional AI: OpenAI Responses API via `OPENAI_API_KEY`
+
+## Run locally
 
 ```bash
-python3 -m http.server 8000
+npm start
 ```
 
-Open `http://localhost:8000`
+Open: `http://localhost:3000`
 
-> You can also open `index.html` directly, but PWA install/offline caching is best via a local server.
+## Optional environment variables
 
-## Deploy (static)
+```bash
+export OPENAI_API_KEY="your_key_here"
+export OPENAI_MODEL="gpt-4.1-mini"
+```
 
-### Option 1: GitHub Pages
+If API key is not set, explain mode still works using a local fallback explanation engine.
 
-1. Create a GitHub repo and push this folder.
-2. In repo **Settings → Pages**, select the branch and root folder.
-3. Save. GitHub will provide your site URL.
+## Main APIs
 
-### Option 2: Netlify (drag & drop)
+- `GET /api/health`
+- `GET /api/concepts`
+- `POST /api/users`
+- `POST /api/explain`
+- `POST /api/quiz/generate`
+- `POST /api/quiz/submit`
+- `GET /api/student/:userId/insights`
+- `GET /api/teacher/:classId/dashboard`
+- `POST /api/teacher/:classId/interventions`
+- `POST /api/demo/seed`
 
-1. Create a new site in Netlify.
-2. Drag this folder into the deploy area.
-3. Netlify will give you a live URL.
+## Demo flow
 
-### Option 3: Vercel (static)
-
-1. Import the repo into Vercel.
-2. Set framework to **Other** and build command to none.
-3. Deploy.
-
-## Data storage
-
-Your data is saved locally in the browser using `localStorage`.
-Use **Export** to download a backup and **Import** to restore it later.
+1. Create student profile
+2. Ask a concept question and generate explanation
+3. Take adaptive quiz and submit
+4. Open teacher role and load dashboard
+5. Seed demo data if needed, then generate interventions
